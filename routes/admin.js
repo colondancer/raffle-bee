@@ -5,7 +5,7 @@ const path = require('path');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Admin dashboard
+// Admin dashboard - serve embedded Polaris interface
 router.get('/', async (req, res) => {
   try {
     const { shop } = req.query;
@@ -23,36 +23,14 @@ router.get('/', async (req, res) => {
       merchant = await prisma.merchant.create({
         data: {
           shopDomain: shop,
-          threshold: 0,
+          threshold: 50, // Default $50 threshold
           billingPlan: 'STANDARD',
         },
       });
     }
 
-    // Get stats
-    const totalEntries = await prisma.entry.count({
-      where: { 
-        merchantId: merchant.id,
-        isActive: true,
-      },
-    });
-
-    const totalRevenue = await prisma.entry.aggregate({
-      where: { 
-        merchantId: merchant.id,
-        isActive: true,
-      },
-      _sum: { orderAmount: true },
-    });
-
-    const stats = {
-      totalEntries,
-      totalRevenue: totalRevenue._sum.orderAmount || 0,
-      averageOrderValue: totalEntries > 0 ? totalRevenue._sum.orderAmount / totalEntries : 0,
-    };
-
-    // Render admin page with data
-    res.send(generateAdminHTML(merchant, stats));
+    // Serve the embedded admin interface
+    res.sendFile(path.join(__dirname, '../public/admin/index.html'));
     
   } catch (error) {
     console.error('Admin dashboard error:', error);
@@ -60,10 +38,67 @@ router.get('/', async (req, res) => {
   }
 });
 
+// API endpoint to get merchant data
+router.get('/api/merchant', async (req, res) => {
+  try {
+    const { shop } = req.query;
+    
+    if (!shop) {
+      return res.status(400).json({ error: 'Missing shop parameter' });
+    }
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop },
+    });
+
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    res.json(merchant);
+    
+  } catch (error) {
+    console.error('Merchant fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch merchant data' });
+  }
+});
+
+// API endpoint to get entries
+router.get('/api/entries', async (req, res) => {
+  try {
+    const { shop } = req.query;
+    
+    if (!shop) {
+      return res.status(400).json({ error: 'Missing shop parameter' });
+    }
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop },
+    });
+
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    const entries = await prisma.entry.findMany({
+      where: { merchantId: merchant.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json(entries);
+    
+  } catch (error) {
+    console.error('Entries fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch entries' });
+  }
+});
+
 // Settings update
 router.post('/settings', async (req, res) => {
   try {
-    const { shop, threshold, billingPlan } = req.body;
+    const { shop } = req.query;
+    const { threshold, billingPlan } = req.body;
     
     if (!shop) {
       return res.status(400).json({ error: 'Missing shop parameter' });

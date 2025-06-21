@@ -24,10 +24,27 @@ const shopifyConfig = {
 app.use(helmet({
   contentSecurityPolicy: false, // Allow Shopify embedding
   crossOriginEmbedderPolicy: false,
+  frameguard: false, // Allow embedding in iframe
 }));
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://admin.shopify.com',
+    /\.myshopify\.com$/,
+    process.env.SHOPIFY_APP_URL
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Add headers for Shopify embedding
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Shopify-Access-Token');
+  next();
+});
 
 // Serve static files for admin interface
 app.use(express.static(path.join(__dirname, 'public')));

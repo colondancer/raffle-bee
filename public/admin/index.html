@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaffleBee Admin</title>
+    <!-- Shopify Polaris CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@latest/build/esm/styles.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 18px;
+            color: #637381;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">Loading RaffleBee Admin...</div>
+    </div>
+
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Shopify App Bridge -->
+    <script src="https://unpkg.com/@shopify/app-bridge@latest"></script>
+    
+    <!-- Shopify Polaris -->
+    <script src="https://unpkg.com/@shopify/polaris@latest/build/umd/polaris.min.js"></script>
+
+    <script>
+        const { useState, useEffect } = React;
+        const { 
+            AppProvider, 
+            Page, 
+            Layout, 
+            Card, 
+            Button, 
+            TextField, 
+            Select, 
+            Banner, 
+            DataTable,
+            Heading,
+            Text,
+            Badge,
+            Stack,
+            FormLayout
+        } = Polaris;
+
+        // Get shop domain from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const shop = urlParams.get('shop');
+
+        function RaffleBeeAdmin() {
+            const [merchant, setMerchant] = useState(null);
+            const [threshold, setThreshold] = useState('50');
+            const [billingPlan, setBillingPlan] = useState('STANDARD');
+            const [entries, setEntries] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+
+            // Initialize App Bridge
+            useEffect(() => {
+                if (shop && window.ShopifyApp) {
+                    window.app = window.ShopifyApp.createApp({
+                        apiKey: '206bca4f45097090e303515061f0414e',
+                        shop: shop,
+                        forceRedirect: true
+                    });
+                }
+            }, [shop]);
+
+            // Fetch merchant data
+            useEffect(() => {
+                fetchMerchantData();
+                fetchEntries();
+            }, []);
+
+            const fetchMerchantData = async () => {
+                try {
+                    const response = await fetch(`/admin/api/merchant?shop=${shop}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setMerchant(data);
+                        setThreshold(data.threshold.toString());
+                        setBillingPlan(data.billingPlan);
+                    }
+                } catch (error) {
+                    console.error('Error fetching merchant data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const fetchEntries = async () => {
+                try {
+                    const response = await fetch(`/admin/api/entries?shop=${shop}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setEntries(data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching entries:', error);
+                }
+            };
+
+            const saveSettings = async () => {
+                setSaving(true);
+                try {
+                    const response = await fetch(`/admin/settings?shop=${shop}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            threshold: threshold,
+                            billingPlan: billingPlan
+                        })
+                    });
+
+                    if (response.ok) {
+                        await fetchMerchantData();
+                        // Show success message
+                    }
+                } catch (error) {
+                    console.error('Error saving settings:', error);
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const billingPlanOptions = [
+                { label: 'Standard (3% transaction fee)', value: 'STANDARD' },
+                { label: 'Enterprise (2% transaction fee)', value: 'ENTERPRISE' }
+            ];
+
+            const entryRows = entries.map(entry => [
+                entry.customerEmail,
+                entry.customerName || 'N/A',
+                `$${entry.orderAmount.toFixed(2)}`,
+                entry.period,
+                entry.isActive ? 
+                    React.createElement(Badge, { status: 'success' }, 'Active') : 
+                    React.createElement(Badge, { status: 'critical' }, 'Inactive'),
+                new Date(entry.createdAt).toLocaleDateString()
+            ]);
+
+            if (loading) {
+                return React.createElement('div', { className: 'loading' }, 'Loading...');
+            }
+
+            return React.createElement(AppProvider, { 
+                i18n: {},
+                features: { newDesignLanguage: true }
+            },
+                React.createElement(Page, {
+                    title: 'RaffleBee Settings',
+                    subtitle: 'Manage your sweepstakes configuration and view customer entries'
+                },
+                    React.createElement(Layout, {},
+                        React.createElement(Layout.Section, {},
+                            React.createElement(Card, { title: 'Sweepstakes Configuration' },
+                                React.createElement(FormLayout, {},
+                                    React.createElement(TextField, {
+                                        label: 'Spending Threshold',
+                                        type: 'number',
+                                        value: threshold,
+                                        onChange: setThreshold,
+                                        prefix: '$',
+                                        helpText: 'Minimum order amount for sweepstakes entry'
+                                    }),
+                                    React.createElement(Select, {
+                                        label: 'Billing Plan',
+                                        options: billingPlanOptions,
+                                        value: billingPlan,
+                                        onChange: setBillingPlan
+                                    }),
+                                    React.createElement(Button, {
+                                        primary: true,
+                                        onClick: saveSettings,
+                                        loading: saving
+                                    }, 'Save Settings')
+                                )
+                            )
+                        ),
+
+                        React.createElement(Layout.Section, {},
+                            React.createElement(Card, { title: 'Statistics' },
+                                React.createElement(Layout, {},
+                                    React.createElement(Layout.Section, { oneThird: true },
+                                        React.createElement(Text, { variant: 'headingMd', as: 'h3' }, 'Total Entries'),
+                                        React.createElement(Text, { variant: 'headingLg', as: 'p' }, entries.length)
+                                    ),
+                                    React.createElement(Layout.Section, { oneThird: true },
+                                        React.createElement(Text, { variant: 'headingMd', as: 'h3' }, 'Active Entries'),
+                                        React.createElement(Text, { variant: 'headingLg', as: 'p' }, 
+                                            entries.filter(e => e.isActive).length
+                                        )
+                                    ),
+                                    React.createElement(Layout.Section, { oneThird: true },
+                                        React.createElement(Text, { variant: 'headingMd', as: 'h3' }, 'Current Threshold'),
+                                        React.createElement(Text, { variant: 'headingLg', as: 'p' }, `$${threshold}`)
+                                    )
+                                )
+                            )
+                        ),
+
+                        React.createElement(Layout.Section, {},
+                            React.createElement(Card, { title: 'Recent Entries' },
+                                entries.length > 0 ?
+                                    React.createElement(DataTable, {
+                                        columnContentTypes: ['text', 'text', 'text', 'text', 'text', 'text'],
+                                        headings: ['Customer Email', 'Name', 'Order Amount', 'Period', 'Status', 'Date'],
+                                        rows: entryRows.slice(0, 10)
+                                    }) :
+                                    React.createElement(Text, { as: 'p' }, 'No entries yet. Entries will appear here when customers place qualifying orders.')
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        // Render the app
+        const container = document.getElementById('app');
+        const root = ReactDOM.createRoot(container);
+        root.render(React.createElement(RaffleBeeAdmin));
+    </script>
+</body>
+</html>

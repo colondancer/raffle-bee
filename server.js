@@ -44,15 +44,20 @@ app.use('/api', apiRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 
-// Health check for Railway
+// Health check for Railway - must be before other routes
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
     service: 'RaffleBee',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    uptime: process.uptime()
   });
 });
+
+// Alternative health endpoints
+app.get('/healthz', (req, res) => res.status(200).send('OK'));
+app.get('/ping', (req, res) => res.status(200).send('pong'));
 
 // Root route - handle both healthcheck and normal requests
 app.get('/', (req, res) => {

@@ -5,6 +5,7 @@ builder = "nixpacks"
 startCommand = "npm run start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
+restartPolicyType = "on_failure"
 
 [env]
 NODE_ENV = "production"

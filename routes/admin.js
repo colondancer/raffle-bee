@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
       merchant = await prisma.merchant.create({
         data: {
           shopDomain: shop,
-          threshold: 0,
+          threshold: 50.0, // Default $50 threshold
           billingPlan: 'STANDARD',
         },
       });

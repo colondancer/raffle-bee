@@ -1,0 +1,140 @@
+{% comment %}
+  RaffleBee Cart Banner - Shows sweepstakes threshold progress
+{% endcomment %}
+
+<div id="rafflebee-cart-banner" 
+     data-shop="{{ shop.domain }}"
+     data-cart-total="{{ cart.total_price | money_without_currency }}"
+     style="display: none;">
+  <div class="rafflebee-banner" 
+       style="background-color: {{ block.settings.banner_color | default: '#008060' }}; 
+              color: {{ block.settings.text_color | default: '#ffffff' }}; 
+              padding: 12px 20px; 
+              text-align: center; 
+              font-size: 16px; 
+              font-weight: 500;
+              position: relative;
+              z-index: 999;">
+    
+    <div class="rafflebee-content">
+      <span class="rafflebee-text">{{ block.settings.banner_text | default: '🎯 You\'re close to entering our sweepstakes!' }}</span>
+      <div class="rafflebee-progress" style="margin-top: 8px;">
+        <div class="rafflebee-progress-bar" 
+             style="background: rgba(255,255,255,0.3); 
+                    height: 6px; 
+                    border-radius: 3px; 
+                    overflow: hidden;">
+          <div class="rafflebee-progress-fill" 
+               style="background: rgba(255,255,255,0.8); 
+                      height: 100%; 
+                      width: 0%; 
+                      transition: width 0.3s ease;
+                      border-radius: 3px;"></div>
+        </div>
+        <div class="rafflebee-amount-text" 
+             style="margin-top: 4px; 
+                    font-size: 14px; 
+                    opacity: 0.9;">
+          Loading...
+        </div>
+      </div>
+    </div>
+    
+    <button class="rafflebee-close" 
+            onclick="document.getElementById('rafflebee-cart-banner').style.display = 'none'" 
+            style="position: absolute; 
+                   right: 15px; 
+                   top: 50%; 
+                   transform: translateY(-50%); 
+                   background: none; 
+                   border: none; 
+                   color: inherit; 
+                   font-size: 18px; 
+                   cursor: pointer; 
+                   opacity: 0.7;"
+            aria-label="Close banner">×</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const banner = document.getElementById('rafflebee-cart-banner');
+  if (!banner) return;
+  
+  const shopDomain = banner.getAttribute('data-shop');
+  const cartTotal = parseFloat(banner.getAttribute('data-cart-total')) || 0;
+  
+  // Fetch threshold from RaffleBee API
+  fetch(`https://raffle-bee-production.up.railway.app/api/cart-check`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      shopDomain: shopDomain,
+      cartTotal: cartTotal
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.showBanner) {
+      const progressFill = banner.querySelector('.rafflebee-progress-fill');
+      const amountText = banner.querySelector('.rafflebee-amount-text');
+      
+      // Calculate progress percentage
+      const progress = Math.min((cartTotal / data.threshold) * 100, 100);
+      progressFill.style.width = progress + '%';
+      
+      // Update text based on progress
+      if (cartTotal >= data.threshold) {
+        amountText.textContent = '🎉 Congrats! You qualify for sweepstakes entry!';
+        banner.querySelector('.rafflebee-text').textContent = 'You\'re eligible for our sweepstakes!';
+      } else {
+        const remaining = data.threshold - cartTotal;
+        amountText.textContent = `Add $${remaining.toFixed(2)} more to qualify for sweepstakes entry`;
+      }
+      
+      // Show banner
+      banner.style.display = 'block';
+    }
+  })
+  .catch(error => {
+    console.error('RaffleBee: Error checking cart threshold:', error);
+  });
+  
+  // Update banner when cart changes (if Shopify cart events are available)
+  if (window.Shopify && window.Shopify.onError) {
+    document.addEventListener('cart:updated', function() {
+      // Reload the page to update cart total
+      setTimeout(() => window.location.reload(), 500);
+    });
+  }
+})();
+</script>
+
+{% schema %}
+{
+  "name": "RaffleBee Cart Banner",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "banner_text",
+      "label": "Banner Text",
+      "default": "🎯 You're close to entering our sweepstakes!"
+    },
+    {
+      "type": "color",
+      "id": "banner_color",
+      "label": "Banner Background Color",
+      "default": "#008060"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}

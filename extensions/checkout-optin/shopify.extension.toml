@@ -1,0 +1,13 @@
+# Checkout UI Extension Configuration
+api_version = "2023-10"
+
+[[extensions]]
+type = "checkout_ui_extension"
+name = "RaffleBee Checkout Opt-in"
+
+[extensions.entrypoints]
+default = "src/Checkout.js"
+
+[extensions.capabilities]
+block_progress = false
+network_access = true

@@ -75,9 +75,9 @@ router.post('/opt-in', async (req, res) => {
 // API endpoint for cart threshold checking
 router.post('/cart-check', async (req, res) => {
   try {
-    const { cartTotal, shop } = req.body;
+    const { cartTotal, shopDomain } = req.body;
 
-    if (!cartTotal || !shop) {
+    if (cartTotal === undefined || !shopDomain) {
       return res.json({ 
         showBanner: false,
         error: 'Missing required fields' 
@@ -86,7 +86,7 @@ router.post('/cart-check', async (req, res) => {
 
     // Get merchant settings
     const merchant = await prisma.merchant.findUnique({
-      where: { shopDomain: shop },
+      where: { shopDomain },
     });
 
     if (!merchant || !merchant.isActive || merchant.threshold <= 0) {

@@ -34,6 +34,7 @@ model Session {
 model Merchant {
   id                String        @id @default(cuid())
   shopDomain        String        @unique
+  accessToken       String?       // Shopify access token for API calls
   threshold         Float         @default(0)
   billingPlan       BillingPlan   @default(STANDARD)
   stripeCustomerId  String?       @unique

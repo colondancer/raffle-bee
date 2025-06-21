@@ -1,10 +1,36 @@
 const express = require('express');
+const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Webhook for orders/paid
+// Middleware to verify Shopify webhook HMAC
+function verifyShopifyWebhook(req, res, next) {
+  try {
+    const hmac = req.get('X-Shopify-Hmac-Sha256');
+    const body = JSON.stringify(req.body);
+    const hash = crypto
+      .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
+      .update(body, 'utf8')
+      .digest('base64');
+
+    if (hash !== hmac) {
+      console.error('Webhook HMAC verification failed');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('HMAC verification error:', error);
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+}
+
+// Apply HMAC verification to all webhook routes
+router.use(verifyShopifyWebhook);
+
+// Webhook for orders/paid - Create sweepstakes entry
 router.post('/orders/paid', async (req, res) => {
   try {
     const order = req.body;
@@ -92,7 +118,7 @@ router.post('/orders/paid', async (req, res) => {
   }
 });
 
-// Webhook for orders/updated (refunds)
+// Webhook for orders/updated - Handle refunds and cancellations
 router.post('/orders/updated', async (req, res) => {
   try {
     const order = req.body;
@@ -157,7 +183,7 @@ router.post('/orders/updated', async (req, res) => {
   }
 });
 
-// Webhook for app/uninstalled
+// Webhook for app/uninstalled - Clean up merchant data
 router.post('/app/uninstalled', async (req, res) => {
   try {
     const shopDomain = req.get('x-shopify-shop-domain');

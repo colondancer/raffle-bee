@@ -3,7 +3,7 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "npm run start"
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 300
 
 [env]

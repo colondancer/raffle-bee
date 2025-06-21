@@ -44,14 +44,64 @@ app.use('/api', apiRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 
-// Root route
-app.get('/', (req, res) => {
-  res.redirect('/admin');
+// Health check for Railway
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    service: 'RaffleBee',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Root route - handle both healthcheck and normal requests
+app.get('/', (req, res) => {
+  const { shop } = req.query;
+  
+  if (!shop) {
+    // If no shop parameter, show a simple status page instead of redirecting
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>RaffleBee - Shopify App</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-align: center; 
+            padding: 50px; 
+            background: #f6f6f7;
+            color: #202223;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          h1 { color: #00848e; margin-bottom: 20px; }
+          p { color: #6b7280; line-height: 1.6; }
+          .status { color: #166534; font-weight: 500; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🎯 RaffleBee</h1>
+          <p class="status">✅ Service is running successfully</p>
+          <p>This is a Shopify app that increases merchant revenue through sweepstakes incentives.</p>
+          <p>To access the admin dashboard, install this app in your Shopify store.</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
+          <p><small>Shopify App • Built with Express.js • Deployed on Railway</small></p>
+        </div>
+      </body>
+      </html>
+    `);
+  } else {
+    // If shop parameter exists, redirect to admin
+    res.redirect(`/admin?shop=${shop}`);
+  }
 });
 
 // Error handling middleware

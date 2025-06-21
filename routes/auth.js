@@ -123,6 +123,7 @@ async function setupMerchant(shopDomain, accessToken) {
 // Register webhooks with Shopify
 async function registerWebhooks(shopDomain, accessToken) {
   const webhooks = [
+    // Business logic webhooks
     {
       topic: 'orders/paid',
       address: `${process.env.SHOPIFY_APP_URL}/webhooks/orders/paid`,
@@ -136,6 +137,22 @@ async function registerWebhooks(shopDomain, accessToken) {
     {
       topic: 'app/uninstalled',
       address: `${process.env.SHOPIFY_APP_URL}/webhooks/app/uninstalled`,
+      format: 'json',
+    },
+    // GDPR compliance webhooks (required for app approval)
+    {
+      topic: 'customers/data_request',
+      address: `${process.env.SHOPIFY_APP_URL}/webhooks/customers/data_request`,
+      format: 'json',
+    },
+    {
+      topic: 'customers/redact',
+      address: `${process.env.SHOPIFY_APP_URL}/webhooks/customers/redact`,
+      format: 'json',
+    },
+    {
+      topic: 'shop/redact',
+      address: `${process.env.SHOPIFY_APP_URL}/webhooks/shop/redact`,
       format: 'json',
     },
   ];

@@ -208,6 +208,200 @@ router.post('/app/uninstalled', async (req, res) => {
   }
 });
 
+// GDPR Compliance Webhooks
+
+// Customer data request - Return all data for a customer
+router.post('/customers/data_request', async (req, res) => {
+  try {
+    const { customer, shop_domain } = req.body;
+    
+    if (!customer || !shop_domain) {
+      console.error('Missing customer or shop_domain in data request');
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+
+    // Find all data related to this customer
+    const entries = await prisma.entry.findMany({
+      where: {
+        OR: [
+          { customerId: customer.id?.toString() },
+          { customerEmail: customer.email },
+        ],
+        merchant: {
+          shopDomain: shop_domain
+        }
+      },
+      include: {
+        merchant: {
+          select: {
+            shopDomain: true,
+            billingPlan: true,
+          }
+        }
+      }
+    });
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        orderId: {
+          in: entries.map(entry => entry.orderId)
+        }
+      }
+    });
+
+    // Prepare customer data response
+    const customerData = {
+      customer_id: customer.id,
+      customer_email: customer.email,
+      shop_domain: shop_domain,
+      entries: entries.map(entry => ({
+        id: entry.id,
+        order_id: entry.orderId,
+        customer_name: entry.customerName,
+        order_amount: entry.orderAmount,
+        period: entry.period,
+        is_active: entry.isActive,
+        created_at: entry.createdAt,
+      })),
+      transactions: transactions.map(transaction => ({
+        id: transaction.id,
+        order_id: transaction.orderId,
+        fee_amount: transaction.feeAmount,
+        status: transaction.status,
+        created_at: transaction.createdAt,
+      })),
+      data_collected: {
+        sweepstakes_entries: entries.length,
+        total_order_value: entries.reduce((sum, entry) => sum + entry.orderAmount, 0),
+        active_entries: entries.filter(entry => entry.isActive).length,
+      }
+    };
+
+    console.log(`Customer data request processed for ${customer.email} from ${shop_domain}`);
+    res.status(200).json(customerData);
+
+  } catch (error) {
+    console.error('Customer data request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Customer data erasure - Delete/anonymize customer data
+router.post('/customers/redact', async (req, res) => {
+  try {
+    const { customer, shop_domain } = req.body;
+    
+    if (!customer || !shop_domain) {
+      console.error('Missing customer or shop_domain in redact request');
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+
+    // Find merchant
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop_domain }
+    });
+
+    if (!merchant) {
+      console.log(`Merchant not found for redact request: ${shop_domain}`);
+      return res.status(200).json({ message: 'Merchant not found' });
+    }
+
+    // Delete or anonymize customer entries
+    const deletedEntries = await prisma.entry.updateMany({
+      where: {
+        OR: [
+          { customerId: customer.id?.toString() },
+          { customerEmail: customer.email },
+        ],
+        merchantId: merchant.id,
+      },
+      data: {
+        customerId: null,
+        customerEmail: 'redacted@privacy.com',
+        customerName: 'Redacted Customer',
+        isActive: false, // Deactivate entries for privacy
+      }
+    });
+
+    // Update related transactions
+    const entriesIds = await prisma.entry.findMany({
+      where: {
+        customerEmail: 'redacted@privacy.com',
+        merchantId: merchant.id,
+      },
+      select: { orderId: true }
+    });
+
+    await prisma.transaction.updateMany({
+      where: {
+        orderId: {
+          in: entriesIds.map(entry => entry.orderId)
+        },
+        merchantId: merchant.id,
+      },
+      data: {
+        description: 'Redacted transaction - customer data removed',
+      }
+    });
+
+    console.log(`Customer data redacted for ${customer.email} from ${shop_domain}. Affected entries: ${deletedEntries.count}`);
+    res.status(200).json({ 
+      message: 'Customer data redacted successfully',
+      entries_affected: deletedEntries.count 
+    });
+
+  } catch (error) {
+    console.error('Customer redact error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Shop data erasure - Delete all shop data (48 hours after uninstall)
+router.post('/shop/redact', async (req, res) => {
+  try {
+    const { shop_domain } = req.body;
+    
+    if (!shop_domain) {
+      console.error('Missing shop_domain in shop redact request');
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+
+    // Find merchant
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop_domain },
+      include: {
+        entries: true,
+        transactions: true,
+      }
+    });
+
+    if (!merchant) {
+      console.log(`Merchant not found for shop redact: ${shop_domain}`);
+      return res.status(200).json({ message: 'Merchant not found' });
+    }
+
+    const entriesCount = merchant.entries.length;
+    const transactionsCount = merchant.transactions.length;
+
+    // Delete all merchant data (cascading deletes will handle entries/transactions)
+    await prisma.merchant.delete({
+      where: { shopDomain: shop_domain }
+    });
+
+    console.log(`Shop data redacted for ${shop_domain}. Deleted merchant, ${entriesCount} entries, ${transactionsCount} transactions`);
+    res.status(200).json({ 
+      message: 'Shop data redacted successfully',
+      merchant_deleted: true,
+      entries_deleted: entriesCount,
+      transactions_deleted: transactionsCount
+    });
+
+  } catch (error) {
+    console.error('Shop redact error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Utility function to calculate transaction fee
 function calculateTransactionFee(orderAmount, billingPlan) {
   const baseRate = billingPlan === 'ENTERPRISE' ? 0.02 : 0.03; // 2% vs 3%

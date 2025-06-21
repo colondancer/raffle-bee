@@ -6,35 +6,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RaffleBee is a Shopify app that increases merchant revenue by offering customers sweepstake entries when they hit spending thresholds. All participating stores share one prize pool, creating network effects.
 
+## Current Architecture (Express.js)
+
+**IMPORTANT**: This project was migrated from Remix to Express.js to eliminate deployment complexity and build issues.
+
 ## Technology Stack
 
-- **Framework**: Remix + Shopify App Remix
+- **Framework**: Express.js (Node.js web framework)
 - **Database**: Neon PostgreSQL with Prisma ORM
 - **Payments**: Stripe for merchant billing
-- **Frontend**: Polaris + Shopify UI Extensions
-- **Deployment**: Shopify App Store (private distribution)
+- **Frontend**: Simple HTML/CSS/JavaScript (no build process)
+- **Deployment**: Railway (deployed from GitHub)
+- **Shopify Integration**: @shopify/shopify-api
 
 ## Development Commands
 
 ```bash
-# Start development server
+# Start development server (with auto-reload)
 npm run dev
 
-# Build for production
-npm run build
+# Start production server
+npm start
 
 # Database operations
-npm run prisma generate    # Generate Prisma client
-npm run prisma migrate dev # Run migrations in development
-npm run prisma migrate deploy # Deploy migrations to production
-npm run prisma studio      # Open Prisma Studio
+npm run prisma:generate     # Generate Prisma client
+npm run prisma:migrate      # Run migrations in development
+npm run prisma:deploy       # Deploy migrations to production
+npm run setup              # Generate client + deploy migrations
 
-# Linting and formatting
-npm run lint
-
-# Shopify CLI commands
-npm run deploy          # Deploy app to Shopify
-npm run generate        # Generate Shopify extensions
+# No build process needed - pure JavaScript!
 ```
 
 ## Architecture Overview
@@ -65,22 +65,50 @@ model PrizePool {
 
 ### Key Directories
 
-- `app/routes/` - Remix routes for admin pages and API endpoints
-- `app/routes/webhooks/` - Shopify webhook handlers
+- `server.js` - Main Express application entry point
+- `routes/` - Express route handlers organized by function:
+  - `routes/webhooks.js` - Shopify webhook handlers
+  - `routes/api.js` - API endpoints for customer interactions
+  - `routes/admin.js` - Admin dashboard and settings
+  - `routes/auth.js` - Shopify OAuth handlers
 - `extensions/` - Shopify UI extensions (cart banner, checkout)
 - `prisma/` - Database schema and migrations
+- `public/` - Static files (CSS, JS, images)
+- `railway.toml` - Railway deployment configuration
 
-### Webhook Handlers
+### Express.js Routes
 
-- `orders/paid` - Create entries for qualifying orders
-- `orders/updated` - Handle refunds and entry adjustments
-- `app/uninstalled` - Clean up merchant data
+#### Webhook Endpoints (`/webhooks/`)
+**Business Logic Webhooks:**
+- `POST /webhooks/orders/paid` - Create entries for qualifying orders
+- `POST /webhooks/orders/updated` - Handle refunds and entry adjustments  
+- `POST /webhooks/app/uninstalled` - Clean up merchant data
 
-### UI Extensions
+**GDPR Compliance Webhooks:**
+- `POST /webhooks/customers/data_request` - Return customer data for GDPR requests
+- `POST /webhooks/customers/redact` - Anonymize/delete customer data
+- `POST /webhooks/shop/redact` - Delete all shop data (48hrs after uninstall)
+
+#### API Endpoints (`/api/`)
+- `POST /api/opt-in` - Handle customer sweepstakes opt-in/opt-out
+- `POST /api/cart-check` - Check cart total against threshold
+- `GET /api/prize-pool` - Get current prize pool information
+
+#### Admin Interface (`/admin/`)
+- `GET /admin` - Main dashboard with stats and settings
+- `POST /admin/settings` - Update merchant threshold and billing plan
+- `GET /admin/entries` - List customer entries
+
+#### Other Routes
+- `GET /` - Status page (or redirect to admin if shop parameter provided)
+- `GET /health` - Health check endpoint for Railway
+- `GET /auth` - Shopify OAuth flow
+
+### UI Extensions (Planned)
 
 - **Theme App Extension**: Cart banner showing threshold progress
 - **Checkout UI Extension**: Opt-in checkbox for sweepstakes
-- **Admin Dashboard**: Merchant settings and analytics
+- **Admin Dashboard**: ✅ Implemented as HTML interface
 
 ## Business Logic
 
@@ -108,10 +136,10 @@ model PrizePool {
 
 ```env
 # Shopify App Configuration
-SHOPIFY_API_KEY=
-SHOPIFY_API_SECRET=
-SHOPIFY_APP_URL=
-SCOPES=read_orders,write_products
+SHOPIFY_API_KEY=206bca4f45097090e303515061f0414e
+SHOPIFY_API_SECRET=7f1d08e7cf3d88857b6729f802ed176a
+SHOPIFY_APP_URL=https://raffle-bee-production.up.railway.app
+SCOPES=read_orders,read_customers,read_products
 
 # Database
 DATABASE_URL=  # Neon PostgreSQL connection string
@@ -211,7 +239,18 @@ try {
 
 ## Deployment Notes
 
-- Use `npm run deploy` to deploy to Shopify
-- Ensure DATABASE_URL points to production Neon database
-- Set NODE_ENV=production in production environment
-- Monitor webhook delivery in Shopify Partner Dashboard
+✅ **DEPLOYED TO PRODUCTION**: https://raffle-bee-production.up.railway.app
+
+- Express.js app successfully deployed on Railway
+- Health checks passing (uptime: 10+ minutes)
+- Neon PostgreSQL database connected
+- Production URL configured in environment variables
+
+### Next Steps for Shopify Integration:
+1. Update Shopify Partner Dashboard with production URL
+2. Configure webhooks to point to production endpoints:
+   - `https://raffle-bee-production.up.railway.app/webhooks/orders/paid`
+   - `https://raffle-bee-production.up.railway.app/webhooks/orders/updated`  
+   - `https://raffle-bee-production.up.railway.app/webhooks/app/uninstalled`
+3. Test complete integration flow
+4. Deploy Theme App Extension and Checkout UI Extension

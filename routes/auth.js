@@ -5,19 +5,30 @@ const { PrismaClient } = require('@prisma/client');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Initialize Shopify API
-const shopify = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: process.env.SCOPES?.split(',') || ['read_orders', 'read_customers', 'read_products'],
-  hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'localhost:3000',
-  hostScheme: 'https',
-  apiVersion: LATEST_API_VERSION,
-  isEmbeddedApp: false,
-  logger: {
-    level: 'info',
-  },
-});
+// Initialize Shopify API (only if environment variables are available)
+let shopify = null;
+
+if (process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET) {
+  try {
+    shopify = shopifyApi({
+      apiKey: process.env.SHOPIFY_API_KEY,
+      apiSecretKey: process.env.SHOPIFY_API_SECRET,
+      scopes: process.env.SCOPES?.split(',') || ['read_orders', 'read_customers', 'read_products'],
+      hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'localhost:3000',
+      hostScheme: 'https',
+      apiVersion: LATEST_API_VERSION,
+      isEmbeddedApp: false,
+      logger: {
+        level: 'info',
+      },
+    });
+    console.log('Shopify API initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Shopify API:', error.message);
+  }
+} else {
+  console.warn('Shopify API not initialized - missing environment variables');
+}
 
 // Shopify OAuth - Start OAuth flow
 router.get('/', async (req, res) => {
@@ -26,6 +37,11 @@ router.get('/', async (req, res) => {
     
     if (!shop) {
       return res.status(400).send('Missing shop parameter');
+    }
+
+    // Check if Shopify API is configured
+    if (!process.env.SHOPIFY_API_KEY || !process.env.SHOPIFY_API_SECRET) {
+      return res.status(500).send('Shopify API not configured - missing environment variables');
     }
 
     // Validate shop domain
@@ -53,6 +69,11 @@ router.get('/callback', async (req, res) => {
     
     if (!shop || !code) {
       return res.status(400).send('Missing required parameters');
+    }
+
+    // Check if Shopify API is configured
+    if (!process.env.SHOPIFY_API_KEY || !process.env.SHOPIFY_API_SECRET) {
+      return res.status(500).send('Shopify API not configured - missing environment variables');
     }
 
     // Validate shop domain

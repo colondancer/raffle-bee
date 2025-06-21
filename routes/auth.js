@@ -17,7 +17,7 @@ if (process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET) {
       hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'localhost:3000',
       hostScheme: 'https',
       apiVersion: LATEST_API_VERSION,
-      isEmbeddedApp: false,
+      isEmbeddedApp: true,
       logger: {
         level: 'info',
       },

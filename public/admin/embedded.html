@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaffleBee Admin</title>
+    
+    <!-- Shopify Polaris CSS from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@latest/build/esm/styles.css">
+    
+    <!-- Shopify App Bridge -->
+    <script src="https://unpkg.com/@shopify/app-bridge@latest"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
+            background-color: #f6f6f7;
+        }
+        
+        .Polaris-Page {
+            background: transparent;
+        }
+        
+        .Polaris-Card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e1e3e5;
+            box-shadow: 0 1px 0 rgba(22, 29, 37, 0.05);
+            margin-bottom: 20px;
+        }
+        
+        .Polaris-Card__Header {
+            padding: 20px 20px 0 20px;
+        }
+        
+        .Polaris-Card__Section {
+            padding: 20px;
+        }
+        
+        .Polaris-Heading {
+            font-size: 20px;
+            font-weight: 600;
+            color: #202223;
+            margin: 0 0 4px 0;
+        }
+        
+        .Polaris-TextStyle--variationSubdued {
+            color: #6d7175;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #008060;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #6d7175;
+        }
+        
+        .Polaris-FormLayout__Item {
+            margin-bottom: 20px;
+        }
+        
+        .Polaris-Label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #202223;
+        }
+        
+        .Polaris-TextField__Input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #c9cccf;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .Polaris-Select {
+            position: relative;
+        }
+        
+        .Polaris-Select__Input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #c9cccf;
+            border-radius: 4px;
+            background: white;
+            font-size: 14px;
+        }
+        
+        .Polaris-Button {
+            background: #008060;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        .Polaris-Button:hover {
+            background: #004c3f;
+        }
+        
+        .Polaris-Button--loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .Polaris-Badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .Polaris-Badge--statusSuccess {
+            background: #d4f5e9;
+            color: #004c3f;
+        }
+        
+        .Polaris-Badge--statusCritical {
+            background: #fed3d1;
+            color: #991b1c;
+        }
+        
+        .Polaris-DataTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .Polaris-DataTable__Cell {
+            padding: 12px;
+            border-bottom: 1px solid #e1e3e5;
+            text-align: left;
+        }
+        
+        .Polaris-DataTable__Cell--header {
+            background: #f6f6f7;
+            font-weight: 500;
+            color: #202223;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6d7175;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #6d7175;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">Loading RaffleBee Admin...</div>
+    </div>
+
+    <script>
+        // Get shop domain from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const shop = urlParams.get('shop');
+        
+        let merchantData = null;
+        let entriesData = [];
+        
+        // Initialize App Bridge for embedding
+        if (shop && window.ShopifyApp) {
+            const app = window.ShopifyApp.createApp({
+                apiKey: '206bca4f45097090e303515061f0414e',
+                shop: shop,
+                forceRedirect: true
+            });
+        }
+
+        // Fetch merchant data
+        async function fetchMerchantData() {
+            try {
+                const response = await fetch(`/admin/api/merchant?shop=${shop}`);
+                if (response.ok) {
+                    merchantData = await response.json();
+                    renderInterface();
+                } else {
+                    // If merchant doesn't exist, the admin route will create it
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Error fetching merchant data:', error);
+                renderError('Failed to load merchant data');
+            }
+        }
+
+        // Fetch entries data
+        async function fetchEntries() {
+            try {
+                const response = await fetch(`/admin/api/entries?shop=${shop}`);
+                if (response.ok) {
+                    entriesData = await response.json();
+                    renderInterface();
+                }
+            } catch (error) {
+                console.error('Error fetching entries:', error);
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            const threshold = document.getElementById('threshold').value;
+            const billingPlan = document.getElementById('billingPlan').value;
+            const saveButton = document.getElementById('saveButton');
+            
+            saveButton.textContent = 'Saving...';
+            saveButton.classList.add('Polaris-Button--loading');
+            
+            try {
+                const response = await fetch(`/admin/settings?shop=${shop}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        threshold: parseFloat(threshold),
+                        billingPlan: billingPlan
+                    })
+                });
+
+                if (response.ok) {
+                    merchantData.threshold = parseFloat(threshold);
+                    merchantData.billingPlan = billingPlan;
+                    renderInterface();
+                    showSuccessMessage();
+                } else {
+                    throw new Error('Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Failed to save settings. Please try again.');
+            } finally {
+                saveButton.textContent = 'Save Settings';
+                saveButton.classList.remove('Polaris-Button--loading');
+            }
+        }
+
+        // Show success message
+        function showSuccessMessage() {
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #d4f5e9;
+                color: #004c3f;
+                padding: 12px 16px;
+                border-radius: 4px;
+                font-size: 14px;
+                z-index: 1000;
+            `;
+            message.textContent = 'Settings saved successfully!';
+            document.body.appendChild(message);
+            
+            setTimeout(() => {
+                document.body.removeChild(message);
+            }, 3000);
+        }
+
+        // Render the interface
+        function renderInterface() {
+            if (!merchantData) return;
+            
+            const activeEntries = entriesData.filter(entry => entry.isActive).length;
+            const totalRevenue = entriesData.reduce((sum, entry) => sum + (entry.isActive ? entry.orderAmount : 0), 0);
+            
+            document.getElementById('app').innerHTML = `
+                <div class="Polaris-Page">
+                    <div class="Polaris-Page__Header">
+                        <h1 class="Polaris-Heading">🎯 RaffleBee Settings</h1>
+                        <p class="Polaris-TextStyle--variationSubdued">Manage your sweepstakes configuration and view customer entries</p>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="Polaris-Card">
+                            <div class="Polaris-Card__Section stat-card">
+                                <div class="stat-value">${entriesData.length}</div>
+                                <div class="stat-label">Total Entries</div>
+                            </div>
+                        </div>
+                        <div class="Polaris-Card">
+                            <div class="Polaris-Card__Section stat-card">
+                                <div class="stat-value">${activeEntries}</div>
+                                <div class="stat-label">Active Entries</div>
+                            </div>
+                        </div>
+                        <div class="Polaris-Card">
+                            <div class="Polaris-Card__Section stat-card">
+                                <div class="stat-value">$${totalRevenue.toFixed(2)}</div>
+                                <div class="stat-label">Total Revenue</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="Polaris-Card">
+                        <div class="Polaris-Card__Header">
+                            <h2 class="Polaris-Heading">Sweepstakes Configuration</h2>
+                        </div>
+                        <div class="Polaris-Card__Section">
+                            <div class="Polaris-FormLayout">
+                                <div class="Polaris-FormLayout__Item">
+                                    <label class="Polaris-Label" for="threshold">Spending Threshold</label>
+                                    <div class="Polaris-TextField">
+                                        <input 
+                                            class="Polaris-TextField__Input" 
+                                            type="number" 
+                                            id="threshold" 
+                                            value="${merchantData.threshold}" 
+                                            step="0.01" 
+                                            min="0"
+                                        >
+                                    </div>
+                                    <div class="help-text">Minimum order amount for sweepstakes entry</div>
+                                </div>
+
+                                <div class="Polaris-FormLayout__Item">
+                                    <label class="Polaris-Label" for="billingPlan">Billing Plan</label>
+                                    <div class="Polaris-Select">
+                                        <select class="Polaris-Select__Input" id="billingPlan">
+                                            <option value="STANDARD" ${merchantData.billingPlan === 'STANDARD' ? 'selected' : ''}>
+                                                Standard (3% transaction fee)
+                                            </option>
+                                            <option value="ENTERPRISE" ${merchantData.billingPlan === 'ENTERPRISE' ? 'selected' : ''}>
+                                                Enterprise (2% transaction fee)
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="Polaris-FormLayout__Item">
+                                    <button class="Polaris-Button" id="saveButton" onclick="saveSettings()">
+                                        Save Settings
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${entriesData.length > 0 ? `
+                    <div class="Polaris-Card">
+                        <div class="Polaris-Card__Header">
+                            <h2 class="Polaris-Heading">Recent Entries</h2>
+                        </div>
+                        <div class="Polaris-Card__Section">
+                            <table class="Polaris-DataTable">
+                                <thead>
+                                    <tr>
+                                        <th class="Polaris-DataTable__Cell Polaris-DataTable__Cell--header">Customer</th>
+                                        <th class="Polaris-DataTable__Cell Polaris-DataTable__Cell--header">Order Amount</th>
+                                        <th class="Polaris-DataTable__Cell Polaris-DataTable__Cell--header">Period</th>
+                                        <th class="Polaris-DataTable__Cell Polaris-DataTable__Cell--header">Status</th>
+                                        <th class="Polaris-DataTable__Cell Polaris-DataTable__Cell--header">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${entriesData.slice(0, 10).map(entry => `
+                                        <tr>
+                                            <td class="Polaris-DataTable__Cell">${entry.customerEmail}</td>
+                                            <td class="Polaris-DataTable__Cell">$${entry.orderAmount.toFixed(2)}</td>
+                                            <td class="Polaris-DataTable__Cell">${entry.period}</td>
+                                            <td class="Polaris-DataTable__Cell">
+                                                <span class="Polaris-Badge ${entry.isActive ? 'Polaris-Badge--statusSuccess' : 'Polaris-Badge--statusCritical'}">
+                                                    ${entry.isActive ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </td>
+                                            <td class="Polaris-DataTable__Cell">${new Date(entry.createdAt).toLocaleDateString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ` : `
+                    <div class="Polaris-Card">
+                        <div class="Polaris-Card__Section">
+                            <p class="Polaris-TextStyle--variationSubdued">
+                                No entries yet. Entries will appear here when customers place qualifying orders over your threshold.
+                            </p>
+                        </div>
+                    </div>
+                    `}
+                </div>
+            `;
+        }
+
+        // Render error state
+        function renderError(message) {
+            document.getElementById('app').innerHTML = `
+                <div class="Polaris-Card">
+                    <div class="Polaris-Card__Section">
+                        <p style="color: #d72c0d;">${message}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize the app
+        if (shop) {
+            fetchMerchantData();
+            fetchEntries();
+        } else {
+            renderError('Missing shop parameter');
+        }
+    </script>
+</body>
+</html>

@@ -51,8 +51,16 @@ router.get('/', async (req, res) => {
       averageOrderValue: totalEntries > 0 ? totalRevenue._sum.orderAmount / totalEntries : 0,
     };
 
-    // Render admin page with data
-    res.send(generateAdminHTML(merchant, stats));
+    // Check if this is a request for embedded interface
+    const embedded = req.query.embedded === 'true' || req.headers['sec-fetch-dest'] === 'iframe';
+    
+    if (embedded) {
+      // Serve embedded interface
+      res.sendFile(path.join(__dirname, '../public/admin/embedded.html'));
+    } else {
+      // Render admin page with data
+      res.send(generateAdminHTML(merchant, stats));
+    }
     
   } catch (error) {
     console.error('Admin dashboard error:', error);
@@ -60,10 +68,67 @@ router.get('/', async (req, res) => {
   }
 });
 
+// API endpoint to get merchant data
+router.get('/api/merchant', async (req, res) => {
+  try {
+    const { shop } = req.query;
+    
+    if (!shop) {
+      return res.status(400).json({ error: 'Missing shop parameter' });
+    }
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop },
+    });
+
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    res.json(merchant);
+    
+  } catch (error) {
+    console.error('Merchant fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch merchant data' });
+  }
+});
+
+// API endpoint to get entries
+router.get('/api/entries', async (req, res) => {
+  try {
+    const { shop } = req.query;
+    
+    if (!shop) {
+      return res.status(400).json({ error: 'Missing shop parameter' });
+    }
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { shopDomain: shop },
+    });
+
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    const entries = await prisma.entry.findMany({
+      where: { merchantId: merchant.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json(entries);
+    
+  } catch (error) {
+    console.error('Entries fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch entries' });
+  }
+});
+
 // Settings update
 router.post('/settings', async (req, res) => {
   try {
-    const { shop, threshold, billingPlan } = req.body;
+    const { shop } = req.query;
+    const { threshold, billingPlan } = req.body;
     
     if (!shop) {
       return res.status(400).json({ error: 'Missing shop parameter' });

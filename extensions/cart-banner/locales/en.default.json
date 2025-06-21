@@ -1,0 +1,18 @@
+{
+  "blocks": {
+    "cart_banner": {
+      "name": "RaffleBee Cart Banner",
+      "settings": {
+        "banner_text": {
+          "label": "Banner Text"
+        },
+        "banner_color": {
+          "label": "Banner Background Color"
+        },
+        "text_color": {
+          "label": "Text Color"
+        }
+      }
+    }
+  }
+}

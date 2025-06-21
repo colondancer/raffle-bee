@@ -1,31 +1,6 @@
-# Theme App Extension Configuration
 api_version = "2023-10"
 
 [[extensions]]
-type = "theme_app_extension"
+type = "theme"
 name = "RaffleBee Cart Banner"
-
-[extensions.settings]
-  [[extensions.settings.blocks]]
-  type = "cart_banner"
-  name = "RaffleBee Sweepstakes Banner"
-  target = "body"
-  
-  [extensions.settings.blocks.settings]
-    [[extensions.settings.blocks.settings.header]]
-    type = "text"
-    id = "banner_text"
-    label = "Banner Text"
-    default = "🎯 You're close to entering our sweepstakes!"
-    
-    [[extensions.settings.blocks.settings.header]]
-    type = "color"
-    id = "banner_color"
-    label = "Banner Background"
-    default = "#008060"
-    
-    [[extensions.settings.blocks.settings.header]]
-    type = "color"
-    id = "text_color"
-    label = "Text Color"
-    default = "#ffffff"
+handle = "cart-banner"
